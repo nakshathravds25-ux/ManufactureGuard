@@ -1,174 +1,126 @@
-# ManufactureGuard — Manufacturing Defect Detection
+# ManufactureGuard — Surface Defect Classification with Texture Features & ML
 
-> **Classify surface images as defective or non-defective using handcrafted texture features and classical ML classifiers — no deep learning.**
+ManufactureGuard is an end-to-end computer-vision project that classifies **six steel surface defect types** from the NEU Surface Defect Database using handcrafted texture descriptors and classical machine-learning models.
 
----
+> **Task:** multiclass classification — crazing, inclusion, patches, pitted surface, rolled-in scale, and scratches.  
+> The NEU-DET dataset contains defect images only, so this project does **not** perform defect-vs-non-defect classification.
 
-## Overview
+## Highlights
 
-This project tackles surface defect detection on the **NEU Surface Defect Database** using:
-
-| Stage | Description |
-|-------|-------------|
-| Feature Extraction | LBP · GLCM · Gabor filter-bank |
-| Feature Selection | SelectKBest (ANOVA F-test, top-80) |
-| Classifiers | SVM (RBF) · Random Forest · Gradient Boosting |
-| Evaluation | ROC-AUC · Precision-Recall curves · Threshold selection (Youden's J) |
-| App | Streamlit — single image, batch, evaluation dashboard |
-
----
+- Multi-scale **Local Binary Patterns (LBP)**
+- **GLCM** texture statistics
+- **Gabor** filter-bank features
+- ANOVA **SelectKBest** feature selection
+- **SVM (RBF)**, **Random Forest**, and **Gradient Boosting**
+- Held-out train/validation/test workflow
+- Multiclass metrics, confusion matrices, one-vs-rest ROC curves, and feature importance
+- Streamlit inference application
 
 ## Dataset
 
-**NEU Surface Defect Database** (6 defect classes, 300 images each = 1,800 total):
+**NEU Surface Defect Database**
 
-| Class | Description |
-|-------|-------------|
-| `crazing` | Network of fine cracks |
-| `inclusion` | Embedded foreign particles |
-| `patches` | Irregular surface patches |
-| `pitted_surface` | Small pits/craters |
-| `rolled-in_scale` | Scale rolled into surface |
-| `scratches` | Linear surface scratches |
+The dataset contains 1,800 grayscale images across six surface-defect classes, with 300 images per class.
 
-Download: https://www.kaggle.com/datasets/kaustubhdikshit/neu-surface-defect-database
+Dataset source: https://www.kaggle.com/datasets/kaustubhdikshit/neu-surface-defect-database
 
----
+## Pipeline
 
-## Quick Start
-
-```bash
-# 1. Clone / extract project
-cd manufacturing_defect_detection
-
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. Place NEU dataset
-# Unzip so that the following structure exists:
-#   ./data/crazing/    (300 images)
-#   ./data/inclusion/  (300 images)
-#   ./data/patches/    (300 images)
-#   ...
-
-# 4. Train all models
-python train.py
-
-# 5. Launch the app
-streamlit run app.py
+```text
+NEU-DET images
+      ↓
+LBP + GLCM + Gabor feature extraction
+      ↓
+Standardization
+      ↓
+ANOVA SelectKBest
+      ↓
+SVM / Random Forest / Gradient Boosting
+      ↓
+6-class defect prediction
+      ↓
+Accuracy + Macro-F1 + ROC-AUC + confusion matrices
 ```
 
----
+## Feature Engineering
 
-## Feature Families
+### Local Binary Patterns
+LBP descriptors are extracted at multiple radii to capture local texture micro-patterns.
 
-### 1. Local Binary Patterns (LBP)
-Multi-scale encoding at radii {1, 2, 3}:
-- Captures local texture micro-patterns
-- Rotation-variant uniform LBP histogram
-- Dimension: `(8+2) + (16+2) + (24+2) = 54`
+### Gray-Level Co-occurrence Matrix
+GLCM-derived features include energy, contrast, dissimilarity, homogeneity, ASM, and correlation across multiple pixel distances.
 
-### 2. Gray-Level Co-occurrence Matrix (GLCM)
-At distances {1, 3, 5} and angles {0°, 45°, 90°, 135°}:
-- **Energy** — texture uniformity
-- **Contrast** — local variation intensity
-- **Dissimilarity** — how different adjacent pixel values are
-- **Homogeneity** — inverse of contrast
-- **ASM** — angular second moment
-- **Correlation** — pixel linearity
-- Dimension: `6 props × 3 distances = 18`
+### Gabor Filters
+A multi-frequency, multi-orientation Gabor filter bank captures oriented texture patterns that are useful for defects such as scratches and rolled-in scale.
 
-### 3. Gabor Filter Bank
-3 frequencies × 6 orientations, each yielding mean + std:
-- Captures oriented texture at multiple scales
-- Excellent for scratches (orientation-specific) and patches
-- Dimension: `3 × 6 × 2 = 36`
-
-**Total raw features: 108 → top-80 after SelectKBest**
-
----
+The combined feature vector is reduced using `SelectKBest(f_classif)` before model training.
 
 ## Models
 
-### SVM (RBF Kernel)
-- `C=10, gamma='scale', class_weight='balanced'`
-- Probability calibration enabled
-- Excellent on high-dimensional texture feature spaces
+- **SVM (RBF kernel)**
+- **Random Forest**
+- **Gradient Boosting**
 
-### Random Forest
-- `n_estimators=400, class_weight='balanced'`
-- Provides per-feature importance scores
-- Robust to irrelevant features
-
-### Gradient Boosting
-- `n_estimators=300, learning_rate=0.08, max_depth=5`
-- Sequential ensemble with shrinkage
-- Strong on complex feature interactions
-
----
+All models are trained as native multiclass classifiers.
 
 ## Evaluation
 
-- **ROC-AUC** and **Precision-Recall curves** plotted for all models
-- **Optimal threshold** selected via Youden's J statistic (max TPR − FPR)
-- **Per-class analysis** shows which defect types are hardest to detect
-- **Feature importance** reveals which LBP/GLCM/Gabor features drive decisions
+The evaluation pipeline reports:
 
----
+- Accuracy
+- Macro precision
+- Macro recall
+- Macro F1
+- Weighted F1
+- One-vs-rest ROC-AUC
+- Per-class classification report
+- Confusion matrices
+- Feature-importance visualizations where supported
+
+Exact metrics should be reproduced by running the training pipeline on the documented dataset split rather than treated as fixed benchmark values.
 
 ## Project Structure
 
-```
-manufacturing_defect_detection/
-├── app.py                    # Streamlit application
-├── train.py                  # Training entry point
+```text
+ManufactureGuard/
+├── app.py
+├── train.py
 ├── requirements.txt
-├── data/                     # NEU dataset (place here)
-│   ├── crazing/
-│   ├── inclusion/
-│   └── ...
-├── models/                   # Saved model artefacts (auto-created)
-│   ├── svm_model.pkl
-│   ├── rf_model.pkl
-│   ├── gb_model.pkl
-│   ├── scaler.pkl
-│   ├── selector.pkl
-│   └── feature_names.pkl
-├── outputs/                  # Evaluation plots (auto-created)
-│   ├── roc_curves.png
-│   ├── pr_curves.png
-│   ├── cm_svm.png
-│   └── ...
+├── models/
+├── output/
 └── src/
-    ├── config.py             # All paths & hyperparameters
-    ├── data_loader.py        # Dataset scanning & splits
-    ├── feature_extraction.py # LBP + GLCM + Gabor extraction
-    ├── models.py             # SVM / RF / GB builders
-    ├── training.py           # End-to-end training pipeline
-    ├── evaluation.py         # Metrics, curves, importance plots
-    └── utils.py              # Logging helpers
+    ├── config.py
+    ├── data_loader.py
+    ├── evaluation.py
+    ├── feature_extraction.py
+    ├── models.py
+    ├── training.py
+    └── utils.py
 ```
 
----
+## Run Locally
 
-## Environment Variables
+```bash
+git clone https://github.com/nakshathravds25-ux/ManufactureGuard.git
+cd ManufactureGuard
+pip install -r requirements.txt
+```
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `NEU_DATA_DIR` | `./data` | Path to NEU dataset root |
+Place the NEU-DET dataset under `./data/`, then run:
 
----
+```bash
+python train.py
+streamlit run app.py
+```
 
-## Expected Performance (NEU-DET)
+## Live Demo
 
-| Model | ROC-AUC | Accuracy | F1 |
-|-------|---------|----------|----|
-| SVM (RBF) | ~0.99 | ~0.97 | ~0.97 |
-| Random Forest | ~0.99 | ~0.98 | ~0.98 |
-| Gradient Boosting | ~0.99 | ~0.97 | ~0.97 |
-
-## Deployment Link
 https://manufactureguard.streamlit.app/
 
+## Tech Stack
 
-> *Results vary by train/val/test split seed. All six NEU classes are inherently defective, so this is a multi-class → binary mapping problem where all samples should ideally be classified as defective.*
+Python · scikit-learn · scikit-image · NumPy · Pandas · Matplotlib · Streamlit
+
+## Scope
+
+This project demonstrates how engineered texture features and classical machine-learning models can be used for multiclass industrial surface-defect recognition. It is an academic/portfolio implementation and is not presented as a production quality-control system.
